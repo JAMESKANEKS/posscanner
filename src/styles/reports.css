@@ -1,0 +1,93 @@
+.main-content {
+  margin-left: 260px;
+  padding: 20px;
+}
+
+.expense-form {
+  display: flex;
+  flex-direction: column;
+  width: 350px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+
+.expense-form input,
+.expense-form textarea {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.button-primary {
+  background:  #047857;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.button-primary:hover {
+  background:  #047857c4
+}
+
+/* Total Expenses */
+.total-expenses-box {
+  background: #001f3f;
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  width: 350px;
+  margin-bottom: 30px;
+}
+
+.total-expenses-box h2 {
+  margin-bottom: 10px;
+}
+
+.total-amount {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+/* Expense Table */
+.expenses-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.expenses-list th,
+.expenses-list td {
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+.expenses-list th {
+  background: #059669;
+  color: white;
+}
+/* Delete button */
+.button-delete {
+  background-color: #ff4d4f; /* Red */
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.button-delete:hover {
+  background-color: #d9363e; /* Darker red on hover */
+  transform: scale(1.05);
+}
+
+/* Optional: Add spacing in Action column */
+.expenses-list table td {
+  text-align: center;
+}
