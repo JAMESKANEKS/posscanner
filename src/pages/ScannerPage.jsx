@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { get, ref, child } from "firebase/database";
 import { db } from "../firebase";
@@ -10,9 +10,14 @@ export default function ScannerPage() {
   const [scanCount, setScanCount] = useState(0);
   const [scanHistory, setScanHistory] = useState([]);
   const [scannedProduct, setScannedProduct] = useState(null);
+  const [scannerInitialized, setScannerInitialized] = useState(false);
+  const scannerRef = useRef(null);
 
   useEffect(() => {
+    if (scannerInitialized) return;
+
     const html5QrCode = new Html5Qrcode("scanner-container");
+    scannerRef.current = html5QrCode;
 
     const config = {
       fps: 10,
@@ -104,11 +109,28 @@ export default function ScannerPage() {
         setErrorMsg("Camera access denied or not supported");
       });
 
+    setScannerInitialized(true);
+
     return () => {
-      html5QrCode.stop().catch(() => {});
-      html5QrCode.clear();
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current.clear();
+      }
     };
-  }, [lastScanned]);
+  }, []); // Remove lastScanned dependency to prevent re-initialization
+
+  // Separate effect to handle scanner restart
+  useEffect(() => {
+    if (scannerRef.current && scannerInitialized) {
+      if (isScanning) {
+        // Resume scanning
+        scannerRef.current.resume().catch(() => {});
+      } else {
+        // Pause scanning
+        scannerRef.current.pause().catch(() => {});
+      }
+    }
+  }, [isScanning, scannerInitialized]);
 
   const restartScanner = () => {
     setIsScanning(true);
@@ -148,9 +170,28 @@ export default function ScannerPage() {
             borderRadius: "10px",
             overflow: "hidden",
             position: "relative",
-            margin: "0 auto 15px auto"
+            margin: "0 auto 15px auto",
+            backgroundColor: isScanning ? "#000" : "#1a1a1a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
           }}
-        />
+        >
+          {!isScanning && scannedProduct && (
+            <div style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "white",
+              textAlign: "center",
+              zIndex: 10
+            }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>✅</div>
+              <div style={{ fontSize: "14px" }}>Product Found!</div>
+            </div>
+          )}
+        </div>
         
         <div style={{ textAlign: "center", marginBottom: "15px" }}>
           <p style={{ margin: "5px 0" }}>
