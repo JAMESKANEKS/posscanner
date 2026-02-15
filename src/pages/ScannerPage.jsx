@@ -11,6 +11,7 @@ export default function ScannerPage() {
   const [scanHistory, setScanHistory] = useState([]);
   const [scannedProduct, setScannedProduct] = useState(null);
   const [scannerInitialized, setScannerInitialized] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
   const scannerRef = useRef(null);
 
   useEffect(() => {
@@ -34,51 +35,62 @@ export default function ScannerPage() {
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     };
 
-    html5QrCode
-      .start(
-        { facingMode: "environment" },
-        config,
-        async (decodedText) => {
-          if (!decodedText) return;
-          
-          // Prevent duplicate scans
-          if (decodedText === lastScanned) return;
-          
-          setLastScanned(decodedText);
-          setScanCount(prev => prev + 1);
-          setIsScanning(false);
+    const startScanning = async () => {
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          async (decodedText) => {
+            if (!decodedText) return;
+            
+            // Prevent duplicate scans
+            if (decodedText === lastScanned) return;
+            
+            setLastScanned(decodedText);
+            setScanCount(prev => prev + 1);
+            setIsScanning(false);
 
-          try {
-            // 🔎 Look up product by barcode
-            const snapshot = await get(child(ref(db), "products"));
-            const productsData = snapshot.val() || {};
-            const productList = Object.keys(productsData).map((key) => ({
-              id: key,
-              ...productsData[key],
-            }));
+            try {
+              // 🔎 Look up product by barcode
+              const snapshot = await get(child(ref(db), "products"));
+              const productsData = snapshot.val() || {};
+              const productList = Object.keys(productsData).map((key) => ({
+                id: key,
+                ...productsData[key],
+              }));
 
-            const product = productList.find((p) => p.barcode === decodedText);
+              const product = productList.find((p) => p.barcode === decodedText);
 
-            if (product) {
-              setScannedProduct(product);
-              // Add to scan history
-              const newScan = {
-                code: decodedText,
-                product: product,
-                timestamp: new Date().toLocaleString(),
-                id: Date.now()
-              };
-              setScanHistory(prev => [newScan, ...prev.slice(0, 9)]);
-            } else {
-              setErrorMsg(`Product not found for barcode: ${decodedText}`);
-              // Add to scan history even if product not found
-              const newScan = {
-                code: decodedText,
-                product: null,
-                timestamp: new Date().toLocaleString(),
-                id: Date.now()
-              };
-              setScanHistory(prev => [newScan, ...prev.slice(0, 9)]);
+              if (product) {
+                setScannedProduct(product);
+                // Add to scan history
+                const newScan = {
+                  code: decodedText,
+                  product: product,
+                  timestamp: new Date().toLocaleString(),
+                  id: Date.now()
+                };
+                setScanHistory(prev => [newScan, ...prev.slice(0, 9)]);
+              } else {
+                setErrorMsg(`Product not found for barcode: ${decodedText}`);
+                // Add to scan history even if product not found
+                const newScan = {
+                  code: decodedText,
+                  product: null,
+                  timestamp: new Date().toLocaleString(),
+                  id: Date.now()
+                };
+                setScanHistory(prev => [newScan, ...prev.slice(0, 9)]);
+                // Auto-retry after 2 seconds
+                setTimeout(() => {
+                  setErrorMsg("");
+                  setIsScanning(true);
+                  setLastScanned("");
+                }, 2000);
+              }
+            } catch (err) {
+              console.error("Error fetching products:", err);
+              setErrorMsg("Error fetching product data. Retrying...");
               // Auto-retry after 2 seconds
               setTimeout(() => {
                 setErrorMsg("");
@@ -86,29 +98,22 @@ export default function ScannerPage() {
                 setLastScanned("");
               }, 2000);
             }
-          } catch (err) {
-            console.error("Error fetching products:", err);
-            setErrorMsg("Error fetching product data. Retrying...");
-            // Auto-retry after 2 seconds
-            setTimeout(() => {
-              setErrorMsg("");
-              setIsScanning(true);
-              setLastScanned("");
-            }, 2000);
+          },
+          (errMsg) => {
+            // Only show error messages, not continuous scanning messages
+            if (errMsg && !errMsg.includes("No barcode or QR code detected")) {
+              setErrorMsg(errMsg);
+            }
           }
-        },
-        (errMsg) => {
-          // Only show error messages, not continuous scanning messages
-          if (errMsg && !errMsg.includes("No barcode or QR code detected")) {
-            setErrorMsg(errMsg);
-          }
-        }
-      )
-      .catch((err) => {
+        );
+        setCameraActive(true);
+      } catch (err) {
         console.error("Scanner failed to start:", err);
         setErrorMsg("Camera access denied or not supported");
-      });
+      }
+    };
 
+    startScanning();
     setScannerInitialized(true);
 
     return () => {
@@ -119,18 +124,10 @@ export default function ScannerPage() {
     };
   }, []); // Remove lastScanned dependency to prevent re-initialization
 
-  // Separate effect to handle scanner restart
+  // Handle scanning state changes without stopping the camera
   useEffect(() => {
-    if (scannerRef.current && scannerInitialized) {
-      if (isScanning) {
-        // Resume scanning
-        scannerRef.current.resume().catch(() => {});
-      } else {
-        // Pause scanning
-        scannerRef.current.pause().catch(() => {});
-      }
-    }
-  }, [isScanning, scannerInitialized]);
+    // This effect now only handles UI state, not camera control
+  }, [isScanning]);
 
   const restartScanner = () => {
     setIsScanning(true);
@@ -171,24 +168,36 @@ export default function ScannerPage() {
             overflow: "hidden",
             position: "relative",
             margin: "0 auto 15px auto",
-            backgroundColor: isScanning ? "#000" : "#1a1a1a",
+            backgroundColor: cameraActive ? "transparent" : "#1a1a1a",
             display: "flex",
             alignItems: "center",
             justifyContent: "center"
           }}
         >
-          {!isScanning && scannedProduct && (
+          {!cameraActive && (
+            <div style={{
+              color: "white",
+              textAlign: "center",
+              fontSize: "14px"
+            }}>
+              <div>Initializing camera...</div>
+            </div>
+          )}
+          {!isScanning && scannedProduct && cameraActive && (
             <div style={{
               position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
+              top: "10px",
+              left: "10px",
+              right: "10px",
+              backgroundColor: "rgba(0, 0, 0, 0.8)",
               color: "white",
+              padding: "10px",
+              borderRadius: "5px",
               textAlign: "center",
               zIndex: 10
             }}>
-              <div style={{ fontSize: "24px", marginBottom: "10px" }}>✅</div>
-              <div style={{ fontSize: "14px" }}>Product Found!</div>
+              <div style={{ fontSize: "16px", marginBottom: "5px" }}>✅ Product Found!</div>
+              <div style={{ fontSize: "12px" }}>{scannedProduct.name}</div>
             </div>
           )}
         </div>
